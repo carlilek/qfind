@@ -9,9 +9,9 @@ import arrow
 
 #Import credentials
 user = os.environ.get('QUMULO_USER') or 'admin'
-password = os.environ.get('QUMULO_PWD')
+passwd = os.environ.get('QUMULO_PWD')
 host = os.environ.get('QUMULO_CLUSTER')
-if None in (user, password, host):
+if None in (user, passwd, host):
     print "Please set environment variables QUMULO_CLUSTER, QUMULO_USER, and QUMULO_PWD"
     sys.exit(0)
 port = 8000
