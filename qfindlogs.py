@@ -51,20 +51,24 @@ def get_dir_info(conninfo, creds, sourcepath, monthago):
     return contents_dirs, logfiles
 
 def parsedirs(directories, monthago):
-    size_sge = {}
     final_pathsizes = {}
     for directory in directories:
-        dmtime = arrow.get(fs.get_file_attr(conninfo,creds,directory["path"])[0]["modification_time"])
-        if directory["name"] in ("sge_error", "sge_output") and monthago > dmtime:
-            d = fs.read_dir_aggregates(conninfo, creds, directory["path"])
-            size_sge[d[0]["path"]] = d[0]["total_data"]
-        else:
-            subdirs, sublfs = get_dir_info(conninfo, creds, directory["path"], monthago)
-            subsizes = parsedirs(subdirs, monthago)
-        final_pathsizes = merge_dicts(final_pathsizes, sublfs, size_sge, subsizes)
+        final_pathsizes = merge_dicts(final_pathsizes, find_in_dirs(directory, monthago))
     return final_pathsizes
 
-
+def find_in_dirs(currdir, monthago):
+    size_sge = {}
+    subsizes = {}
+    sublfs = {}
+    dmtime = arrow.get(fs.get_file_attr(conninfo,creds,currdir["path"])[0]["modification_time"])
+    if currdir["name"] in ("sge_error", "sge_output") and monthago > dmtime:
+        d = fs.read_dir_aggregates(conninfo, creds, currdir["path"])
+        size_sge[d[0]["path"]] = d[0]["total_data"]
+    else:
+        subdirs, sublfs = get_dir_info(conninfo, creds, currdir["path"], monthago)
+        subsizes = parsedirs(subdirs, monthago)
+    curr_pathsizes = merge_dicts(size_sge, subsizes, sublfs)
+    return curr_pathsizes
 
 def main(argv):
     sourcepath=sys.argv[1]
