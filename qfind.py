@@ -83,17 +83,22 @@ def findmoddate(samplefile):
         sys.exit(1)
     return compdate
 
-def iterateoverdir(pathtoread, sname, ssize, sdate):
+def testitem(item):
+    if (sname is None or re.match(sname, item['name'])) \
+    and (ssize is None or int(item['size']) == ssize) \
+    and (sdate is None or sdate < findmoddate(item['modification_time'])):
+        mntfilepath = item['path'].replace(qsrcpath, mountsrcpath) 
+        print(mntfilepath)
+
+
+def iterateoverdir(pathtoread):
+    itemlist = []
     dirobj = fs.read_entire_directory(path=pathtoread, page_size=100000000)
     for item in dirobj.next()['files']:
-        if (sname is None or re.match(sname, item['name'])) \
-        and (ssize is None or int(item['size']) == ssize) \
-        and (sdate is None or sdate < findmoddate(item['modification_time'])):
-            mntfilepath = item['path'].replace(qsrcpath, mountsrcpath) 
-            print(mntfilepath)
-            #print('{}: {}B, {}'.format(item['path'], item['size'], item['modification_time']))
+        itemlist.append(item)
         if item['type'] == 'FS_FILE_TYPE_DIRECTORY':
-            iterateoverdir(item['path'], sname, ssize, sdate)
+            itemlist.extend(iterateoverdir(item['path']))
+    return itemlist
 
 def main(argv):
     parser = argparse.ArgumentParser(description="Qumulo API based find command with (very) limited subset of GNU find flags implemented")
@@ -111,26 +116,31 @@ def main(argv):
     
     global qsrcpath
     global mountsrcpath
+    global sname
+    global ssize
+    global sdate
 
     mountsrcpath = os.path.realpath(args.sourcepath)
     qsrcpath = getqpath(mountsrcpath, configdict['fsmap'])
 
     if args.name is not None:
-        name_re = fnmatch(args.name)
+        sname = fnmatch(args.name)
     else:
-        name_re = None
+        sname = None
 
     if args.newer is not None:
-        compdate = findmoddate(args.newer)
+        sdate = findmoddate(args.newer)
     else:
-        compdate = None
+        sdate = None
 
     if args.size is not None:
-        sizebytes = getsizeinbytes(args.size)
+        ssize = getsizeinbytes(args.size)
     else:
-        sizebytes = None
+        ssize = None
     
-    iterateoverdir(qsrcpath, name_re, sizebytes, compdate)
+    itemlist = iterateoverdir(qsrcpath)
+    for item in itemlist:
+        testitem(item) 
     
 
 if __name__ == '__main__':
