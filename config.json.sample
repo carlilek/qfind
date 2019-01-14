@@ -1,0 +1,9 @@
+{
+    "qcluster":{
+        "name":"ClusterName",
+        "url":"clusterurl.example.com",
+        "user":"admin",
+        "password":"PASSWORD",
+		"fsmap":{"/mountpath/share":"/qpath/share", "/mountpath/share2":"/qpath/share/share2"}
+	}
+}
