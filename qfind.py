@@ -83,16 +83,6 @@ def findmoddate(samplefile):
         sys.exit(1)
     return compdate
 
-def merge_dicts(*dict_args):
-    '''
-    Given any number of dicts, shallow copy and merge into a new dict,
-    precedence goes to key value pairs in latter dicts.
-    '''
-    result = {}
-    for dictionary in dict_args:
-        result.update(dictionary)
-    return result
-
 def iterateoverdir(pathtoread, sname, ssize, sdate):
     dirobj = fs.read_entire_directory(path=pathtoread, page_size=100000000)
     for item in dirobj.next()['files']:
