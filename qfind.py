@@ -70,14 +70,10 @@ def getsizeinbytes(size):
 
     return sizeinbytes
 
-def translatedate(qdate):
-    date = datetime.strptime(qdate, '%Y-%m-%dT%H:%M:%S')
-    return date
-
 def findmoddate(samplefile):
     try:
         rawdate = fileapi.get_attr(samplefile)['modification_time'][:-1]
-        compdate = translatedate(rawdate)
+        compdate = datetime.strptime(rawdate, '%Y-%m-%dT%H:%M:%S')
     except Exception, excpt:
         print('Error in finding date for -newer file {}: {}'.format(samplefile, excpt))
         sys.exit(1)
