@@ -8,6 +8,7 @@ from fnmatch import translate as fnmatch
 import re
 import json
 from datetime import datetime
+from multiprocessing.dummy import Pool
 
 ############config file location
 configpath = './config.json'
@@ -90,15 +91,45 @@ def testitem(item):
         mntfilepath = item['path'].replace(qsrcpath, mountsrcpath) 
         print(mntfilepath)
 
-
 def iterateoverdir(pathtoread):
+    print pathtoread
+    rc = login(configdict)    
+    fs = rc.fs
     itemlist = []
     dirobj = fs.read_entire_directory(path=pathtoread, page_size=100000000)
     for item in dirobj.next()['files']:
         itemlist.append(item)
-        if item['type'] == 'FS_FILE_TYPE_DIRECTORY':
-            itemlist.extend(iterateoverdir(item['path']))
     return itemlist
+
+def finddirs(itemlist):
+    dirlist = []
+    for item in itemlist:
+        if item['type'] == 'FS_FILE_TYPE_DIRECTORY':
+            dirlist.append(item['path'])
+    return dirlist
+
+def mpdirlist(dirlist, processes):
+    sublist = []
+    dpool = Pool(processes=processes)
+    dpool.map_async(iterateoverdir, dirlist, callback=sublist.extend)
+    dpool.close()
+    dpool.join()
+    return sublist
+
+def mpselect(itemlist, processes):
+    pool = Pool(processes=processes)
+    pool.map_async(testitem, itemlist)
+    pool.close()
+    pool.join()
+
+def processitemlist(itemlist, processes):
+    dirlist = finddirs(itemlist)
+    if dirlist is not None:
+        sublist = mpdirlist(dirlist, processes)
+        for sub in sublist:
+            if len(sub) is not 0:
+                resultlist.extend(sub)
+                processitemlist(sub, processes)
 
 def main(argv):
     parser = argparse.ArgumentParser(description="Qumulo API based find command with (very) limited subset of GNU find flags implemented")
@@ -107,12 +138,11 @@ def main(argv):
     parser.add_argument('-newer', type=str, default=None)
     parser.add_argument('-size', type=str, default=None)
     parser.add_argument('--config', type=str, default=configpath)
+    parser.add_argument('--processes', type=int, default=1)
     args = parser.parse_args()
-
+    
+    global configdict
     configdict = getconfig(args.config)
-    global fs
-    rc = login(configdict)    
-    fs = rc.fs
     
     global qsrcpath
     global mountsrcpath
@@ -138,10 +168,12 @@ def main(argv):
     else:
         ssize = None
     
-    itemlist = iterateoverdir(qsrcpath)
-    for item in itemlist:
-        testitem(item) 
-    
+    global resultlist
+    resultlist = iterateoverdir(qsrcpath)
+    processitemlist(resultlist, args.processes)
+    #mpselect(resultlist, args.processes)
+    for item in resultlist:
+        testitem(item)
 
 if __name__ == '__main__':
     main(sys.argv[1:])
