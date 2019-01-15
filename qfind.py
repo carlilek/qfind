@@ -8,7 +8,7 @@ from fnmatch import translate as fnmatch
 import re
 import json
 from datetime import datetime
-from multiprocessing.dummy import Pool
+from multiprocessing import Pool
 
 ############config file location
 configpath = './config.json'
@@ -91,8 +91,13 @@ def testitem(item):
         mntfilepath = item['path'].replace(qsrcpath, mountsrcpath) 
         print(mntfilepath)
 
+def mpselect(itemlist, processes):
+    pool = Pool(processes=processes)
+    pool.map_async(testitem, itemlist)
+    pool.close()
+    pool.join()
+
 def iterateoverdir(pathtoread):
-    print pathtoread
     rc = login(configdict)    
     fs = rc.fs
     itemlist = []
@@ -116,12 +121,6 @@ def mpdirlist(dirlist, processes):
     dpool.join()
     return sublist
 
-def mpselect(itemlist, processes):
-    pool = Pool(processes=processes)
-    pool.map_async(testitem, itemlist)
-    pool.close()
-    pool.join()
-
 def processitemlist(itemlist, processes):
     dirlist = finddirs(itemlist)
     if dirlist is not None:
@@ -143,6 +142,11 @@ def main(argv):
     
     global configdict
     configdict = getconfig(args.config)
+    global rc
+    global fs
+    rc = login(configdict)    
+    fs = rc.fs
+
     
     global qsrcpath
     global mountsrcpath
