@@ -103,44 +103,44 @@ def testitem(item):
     else:
         return None
 
-def mpselect(itemlist, processes):
-    pool = Pool(processes=processes)
-    pool.map_async(testitem, itemlist)
-    pool.close()
-    pool.join()
-
-def iterateoverdir(pathtoread):
-    rc = login(configdict)    
-    fs = rc.fs
-    itemlist = []
-    dirobj = fs.read_entire_directory(path=pathtoread, page_size=100000000)
-    for item in dirobj.next()['files']:
-        itemlist.append(item)
-    return itemlist
-
-def finddirs(itemlist):
-    dirlist = []
-    for item in itemlist:
-        if item['type'] == 'FS_FILE_TYPE_DIRECTORY':
-            dirlist.append(item['path'])
-    return dirlist
-
-def mpdirlist(dirlist, processes):
-    sublist = []
-    dpool = Pool(processes=processes)
-    dpool.map_async(iterateoverdir, dirlist, callback=sublist.extend)
-    dpool.close()
-    dpool.join()
-    return sublist
-
-def processitemlist(itemlist, processes):
-    dirlist = finddirs(itemlist)
-    if dirlist is not None:
-        sublist = mpdirlist(dirlist, processes)
-        for sub in sublist:
-            if len(sub) is not 0:
-                resultlist.extend(sub)
-                processitemlist(sub, processes)
+#def mpselect(itemlist, processes):
+#    pool = Pool(processes=processes)
+#    pool.map_async(testitem, itemlist)
+#    pool.close()
+#    pool.join()
+#
+#def iterateoverdir(pathtoread):
+#    rc = login(configdict)    
+#    fs = rc.fs
+#    itemlist = []
+#    dirobj = fs.read_entire_directory(path=pathtoread, page_size=100000000)
+#    for item in dirobj.next()['files']:
+#        itemlist.append(item)
+#    return itemlist
+#
+#def finddirs(itemlist):
+#    dirlist = []
+#    for item in itemlist:
+#        if item['type'] == 'FS_FILE_TYPE_DIRECTORY':
+#            dirlist.append(item['path'])
+#    return dirlist
+#
+#def mpdirlist(dirlist, processes):
+#    sublist = []
+#    dpool = Pool(processes=processes)
+#    dpool.map_async(iterateoverdir, dirlist, callback=sublist.extend)
+#    dpool.close()
+#    dpool.join()
+#    return sublist
+#
+#def processitemlist(itemlist, processes):
+#    dirlist = finddirs(itemlist)
+#    if dirlist is not None:
+#        sublist = mpdirlist(dirlist, processes)
+#        for sub in sublist:
+#            if len(sub) is not 0:
+#                resultlist.extend(sub)
+#                processitemlist(sub, processes)
 
 def getclusterips():
     cluster_ips = []
@@ -157,7 +157,7 @@ def add_to_q(q, q_len, q_lock, qdir):
     with q_lock:
         q_len.value += 1
 
-def worker(q, q_len, q_lock, cluster_ips, configdict):
+def worker(q, cluster_ips, configdict):
     outlist = []
     ip = random.choice(cluster_ips)
     rc = RestClient(ip, 8000)
@@ -168,14 +168,11 @@ def worker(q, q_len, q_lock, cluster_ips, configdict):
 
     while True:
         item = q.get(True)
-        rows = read_dir(ip, ses, q, q_len, q_lock, item)
-        with q_lock:
-            q_len.value -= 1
-            for row in rows:
-                print row
-        time.sleep(0.01)
+        rows = read_dir(ip, ses, q, item)
+        for row in rows:
+            print row
 
-def read_dir(ip, ses, q, q_len, q_lock, path):
+def read_dir(ip, ses, q, path):
     inode_count = 0
     url = 'https://%s:8000/v1/files/%s/entries/?limit=1000000' % (ip, urllib.quote_plus(path))
     resp = ses.get(url, verify=False)
@@ -189,7 +186,8 @@ def read_dir(ip, ses, q, q_len, q_lock, path):
                 row = testeditem['mntfilepath']
                 rows.append(row.encode("UTF-8"))
             if item['type'] == "FS_FILE_TYPE_DIRECTORY":
-                add_to_q(q, q_len, q_lock, item['id'])
+                #print item['path'], item['id']
+                q.put(item['id'])
         if 'next' in obj['paging']:
             url = 'https://%s:8000%s' % (ip, obj['paging']['next'])
             resp = ses.get(url, verify=False)
@@ -245,10 +243,9 @@ def main(argv):
         ssize = None
     
     q = multiprocessing.Queue()
-    q_len = multiprocessing.Value('i', 0)
-    q_lock = multiprocessing.Lock()
-    pool = multiprocessing.Pool(args.processes, worker, (q, q_len, q_lock, cluster_ips, configdict))
-    add_to_q(q, q_len, q_lock, qsrcpath)
+    pool = multiprocessing.Pool(args.processes, worker, (q, cluster_ips, configdict))
+    q.put(qsrcpath)
+    #add_to_q(q, q_len, q_lock, qsrcpath)
     
 
     #global resultlist
